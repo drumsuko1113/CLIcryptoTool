@@ -44,25 +44,3 @@ def filter_iran_news(entries):
         if any(kw in text for kw in IRAN_KEYWORDS):
             filtered.append(entry)
     return filtered
-
-
-def format_news_display(entries, title="ニュース"):
-    """ニュースエントリをフォーマットして返す"""
-    lines = [
-        "=" * 60,
-        f"  {title}",
-        "=" * 60,
-    ]
-
-    if not entries:
-        lines.append("  ニュースはありません")
-    else:
-        for i, entry in enumerate(entries):
-            pub = getattr(entry, "published", "不明")
-            lines.append(f"  [{i+1}] {entry.title}")
-            lines.append(f"      {pub}")
-            lines.append(f"      {entry.link}")
-            lines.append("")
-
-    lines.append("=" * 60)
-    return "\n".join(lines)

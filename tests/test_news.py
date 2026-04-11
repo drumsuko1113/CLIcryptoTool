@@ -1,6 +1,6 @@
 """ニュース取得モジュールのテスト"""
 from unittest.mock import patch, MagicMock
-from src.news import fetch_news, filter_iran_news, format_news_display
+from src.news import fetch_news, filter_iran_news
 
 
 def _make_entry(title, link, published, summary):
@@ -58,15 +58,3 @@ class TestFilterIranNews:
         ]
         filtered = filter_iran_news(entries)
         assert len(filtered) == 0
-
-
-class TestFormatNewsDisplay:
-    def test_formats_correctly(self):
-        entries = _mock_entries()
-        output = format_news_display(entries)
-        assert "Bitcoin" in output
-        assert "Ethereum" in output
-
-    def test_format_empty(self):
-        output = format_news_display([])
-        assert "なし" in output or "ニュース" in output
