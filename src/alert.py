@@ -2,6 +2,8 @@
 import threading
 import time
 
+from src.platform_utils import notify_windows
+
 
 class AlertManager:
     """価格アラートを管理するクラス"""
@@ -62,33 +64,15 @@ class AlertManager:
         lines.append("=" * 50)
         return "\n".join(lines)
 
-    def notify_windows(self, alert, current_price):
-        """Windows通知を送信する"""
-        try:
-            from subprocess import Popen
-            direction = "到達" if alert["direction"] == "above" else "下落"
-            title = "ETH 価格アラート"
-            msg = f"ETH価格が¥{alert['price']:,.0f}{direction}しました（現在: ¥{current_price:,.0f}）"
-            # PowerShellでトースト通知
-            ps_cmd = (
-                f"[Windows.UI.Notifications.ToastNotificationManager, "
-                f"Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; "
-                f"$template = [Windows.UI.Notifications.ToastNotificationManager]"
-                f"::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]"
-                f"::ToastText02); "
-                f"$text = $template.GetElementsByTagName('text'); "
-                f"$text.Item(0).AppendChild($template.CreateTextNode('{title}')); "
-                f"$text.Item(1).AppendChild($template.CreateTextNode('{msg}')); "
-                f"$toast = [Windows.UI.Notifications.ToastNotification]::new($template); "
-                f"[Windows.UI.Notifications.ToastNotificationManager]"
-                f"::CreateToastNotifier('ETH Terminal').Show($toast)"
-            )
-            Popen(
-                ["powershell", "-Command", ps_cmd],
-                creationflags=0x08000000
-            )
-        except Exception:
-            print(f"  [アラート] ¥{alert['price']:,.0f} に到達（¥{current_price:,.0f}）")
+    def _notify(self, alert, current_price):
+        """アラート通知を送信する"""
+        direction = "到達" if alert["direction"] == "above" else "下落"
+        title = "ETH 価格アラート"
+        msg = (
+            f"ETH価格が¥{alert['price']:,.0f}{direction}しました"
+            f"（現在: ¥{current_price:,.0f}）"
+        )
+        notify_windows(title, msg)
 
     def start_monitor(self, price_func, interval=10):
         """バックグラウンドで価格監視を開始する"""
@@ -105,7 +89,7 @@ class AlertManager:
                         current = prices["eth_jpy"]
                         triggered = self.check_alerts(current)
                         for alert in triggered:
-                            self.notify_windows(alert, current)
+                            self._notify(alert, current)
                 except Exception:
                     pass
                 time.sleep(interval)
@@ -114,5 +98,5 @@ class AlertManager:
         self._monitor_thread.start()
 
     def stop_monitor(self):
-        """価格監視を停止する"""
+        """価格監視を停���する"""
         self._running = False

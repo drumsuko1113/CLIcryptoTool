@@ -5,8 +5,6 @@ from src.chart import (
     calc_sma,
     calc_rsi,
     calc_macd,
-    render_candlestick,
-    format_indicators,
 )
 
 
@@ -86,20 +84,3 @@ class TestCalcMacd:
         assert len(macd_line) == 50
         assert len(signal) == 50
         assert len(histogram) == 50
-
-
-class TestRenderCandlestick:
-    def test_render_returns_string(self):
-        klines = _sample_klines()
-        output = render_candlestick(klines)
-        assert isinstance(output, str)
-        assert len(output) > 0
-
-
-class TestFormatIndicators:
-    def test_format_returns_string(self):
-        closes = [float(2500 + i * 5) for i in range(30)]
-        output = format_indicators(closes)
-        assert "SMA" in output
-        assert "RSI" in output
-        assert "MACD" in output

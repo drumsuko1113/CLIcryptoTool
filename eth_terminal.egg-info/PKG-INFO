@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: eth-terminal
+Version: 1.0.0
+Summary: ETH Trading Terminal - ターミナルベース ETH トレード支援ツール
+Requires-Python: >=3.10
+Requires-Dist: requests>=2.31.0
+Requires-Dist: feedparser>=6.0.0
+Requires-Dist: rich>=13.7.0
+Requires-Dist: prompt_toolkit>=3.0.0

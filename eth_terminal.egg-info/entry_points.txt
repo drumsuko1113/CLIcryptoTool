@@ -1,0 +1,2 @@
+[console_scripts]
+eth = src.main:main

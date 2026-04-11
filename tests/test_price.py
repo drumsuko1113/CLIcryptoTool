@@ -4,7 +4,6 @@ from src.price import (
     fetch_eth_usdt_ticker,
     fetch_usd_jpy_rate,
     get_eth_prices,
-    format_price_display,
 )
 
 
@@ -90,23 +89,3 @@ class TestGetEthPrices:
             result = get_eth_prices()
 
         assert result is None
-
-
-class TestFormatPriceDisplay:
-    def test_formats_correctly(self):
-        prices = {
-            "eth_usd": 2500.50,
-            "eth_jpy": 388827.75,
-            "high_usd": 2600.00,
-            "low_usd": 2400.00,
-            "high_jpy": 404300.00,
-            "low_jpy": 373200.00,
-            "volume": 123456.789,
-            "change_percent": 2.35,
-            "usd_jpy_rate": 155.50,
-        }
-        output = format_price_display(prices)
-        assert "ETH/USD" in output
-        assert "ETH/JPY" in output
-        assert "2,500.50" in output
-        assert "24H" in output

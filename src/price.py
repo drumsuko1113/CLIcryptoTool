@@ -57,22 +57,3 @@ def get_eth_prices():
         "change_percent": change_percent,
         "usd_jpy_rate": rate,
     }
-
-
-def format_price_display(prices):
-    """価格情報を見やすくフォーマットして返す"""
-    lines = [
-        "=" * 50,
-        "  ETH 価格情報",
-        "=" * 50,
-        f"  ETH/USD:  ${prices['eth_usd']:,.2f}",
-        f"  ETH/JPY:  ¥{prices['eth_jpy']:,.0f}",
-        f"  USD/JPY:  ¥{prices['usd_jpy_rate']:.2f}",
-        "-" * 50,
-        f"  24H 高値: ${prices['high_usd']:,.2f} (¥{prices['high_jpy']:,.0f})",
-        f"  24H 安値: ${prices['low_usd']:,.2f} (¥{prices['low_jpy']:,.0f})",
-        f"  24H 出来高: {prices['volume']:,.2f} ETH",
-        f"  24H 変動: {prices['change_percent']:+.2f}%",
-        "=" * 50,
-    ]
-    return "\n".join(lines)
