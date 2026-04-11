@@ -55,11 +55,24 @@ class TestGeneratePrompt:
 
 
 class TestCopyAndOpen:
-    def test_copy_to_clipboard(self):
-        with patch("src.ask.subprocess.Popen") as mock_popen:
+    def test_copy_to_clipboard_calls_powershell(self):
+        """copy_to_clipboardがsubprocess.runを呼ぶこと"""
+        with patch("src.ask.subprocess.run") as mock_run:
             from src.ask import copy_to_clipboard
-            copy_to_clipboard("test text")
-            mock_popen.assert_called_once()
+            copy_to_clipboard("テスト日本語テキスト")
+            mock_run.assert_called_once()
+            # PowerShellコマンドにSet-Clipboardが含まれること
+            call_args = mock_run.call_args[0][0]
+            assert "powershell" in call_args[0].lower()
+
+    def test_copy_to_clipboard_uses_set_clipboard(self):
+        """PowerShellのSet-Clipboardが呼ばれること"""
+        with patch("src.ask.subprocess.run") as mock_run:
+            from src.ask import copy_to_clipboard
+            copy_to_clipboard("日本語テスト")
+            call_args = mock_run.call_args[0][0]
+            cmd_str = " ".join(call_args)
+            assert "Set-Clipboard" in cmd_str
 
     def test_open_claude_ai(self):
         with patch("src.ask.webbrowser.open") as mock_open:
