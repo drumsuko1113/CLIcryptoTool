@@ -107,7 +107,9 @@ def _build_help_panel():
         ("/iran", "イラン関連ニュースフィルタ"),
         ("/analysis", "ルールベース自動分析"),
         ("/position", "ポジション損益確認"),
-        ("/alert <価格>", "アラート設定（JPY）"),
+        ("/alert <価格>", "アラート作成（JPY）"),
+        ("/alert remove <番号>", "アラート削除"),
+        ("/alert clear", "アラート全削除"),
         ("/alerts", "アラート一覧"),
         ("/ask", "claude.ai連携プロンプト生成"),
         ("/refresh", "ダッシュボード手動更新"),
@@ -264,12 +266,38 @@ def cmd_position():
 
 
 def cmd_alert(args):
-    """アラート設定コマンド"""
+    """アラート設定コマンド（サブコマンド: remove, clear）"""
     if not args:
         console.print(alert_manager.format_alerts())
         return
+
+    subcmd = args[0].lower()
+
+    # /alert remove <index>
+    if subcmd == "remove":
+        if len(args) < 2:
+            console.print(f"  [{COLOR_DOWN}]使い方: /alert remove <番号>[/]")
+            return
+        try:
+            index = int(args[1])
+            if alert_manager.remove_alert(index):
+                console.print(f"  [{COLOR_UP}]✓ アラート [{index}] を削除しました[/]")
+            else:
+                console.print(f"  [{COLOR_DOWN}]エラー: 番号 {index} のアラートは存在しません[/]")
+        except ValueError:
+            console.print(f"  [{COLOR_DOWN}]エラー: 番号は数値で指定してください[/]")
+        return
+
+    # /alert clear
+    if subcmd == "clear":
+        count = len(alert_manager.alerts)
+        alert_manager.clear_alerts()
+        console.print(f"  [{COLOR_UP}]✓ {count}件のアラートを全削除しました[/]")
+        return
+
+    # /alert <価格> [above|below] — 新規作成
     try:
-        price = float(args[0])
+        price = float(subcmd)
         direction = args[1] if len(args) > 1 else "above"
         alert_manager.add_alert(price, direction)
         dir_label = "以上" if direction == "above" else "以下"
@@ -281,6 +309,7 @@ def cmd_alert(args):
             console.print(f"  [{COLOR_ACCENT}]監視開始[/]")
     except ValueError:
         console.print(f"  [{COLOR_DOWN}]エラー: 価格は数値で指定してください[/]")
+        console.print(f"  [{COLOR_MUTED}]使い方: /alert <価格> | /alert remove <番号> | /alert clear[/]")
 
 
 def cmd_alerts():

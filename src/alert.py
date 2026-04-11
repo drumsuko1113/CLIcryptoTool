@@ -26,6 +26,10 @@ class AlertManager:
             return True
         return False
 
+    def clear_alerts(self):
+        """全アラートを削除する"""
+        self.alerts.clear()
+
     def check_alerts(self, current_price):
         """現在価格でアラート条件をチェックし、発火したアラートを返す"""
         triggered = []

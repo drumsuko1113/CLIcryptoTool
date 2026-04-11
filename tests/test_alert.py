@@ -61,3 +61,15 @@ class TestAlertManager:
     def test_format_empty_alerts(self):
         output = self.manager.format_alerts()
         assert "なし" in output or "設定されていません" in output
+
+    def test_clear_alerts(self):
+        self.manager.add_alert(350000, "above")
+        self.manager.add_alert(300000, "below")
+        self.manager.clear_alerts()
+        assert len(self.manager.alerts) == 0
+
+    def test_remove_alert_returns_true(self):
+        self.manager.add_alert(350000, "above")
+        result = self.manager.remove_alert(0)
+        assert result is True
+        assert len(self.manager.alerts) == 0
