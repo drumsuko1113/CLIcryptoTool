@@ -36,12 +36,26 @@ def generate_prompt(market_data):
 
 def copy_to_clipboard(text):
     """テキストをクリップボードにコピーする（Windows）"""
-    process = subprocess.Popen(
-        ["powershell", "-Command", "Set-Clipboard -Value $input"],
-        stdin=subprocess.PIPE,
-        creationflags=0x08000000
+    import tempfile
+    import os
+    # 一時ファイルにUTF-8で書き出し、PowerShellでUTF-8として読み込む
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".txt", encoding="utf-8", delete=False
     )
-    process.communicate(text.encode("utf-8"))
+    try:
+        tmp.write(text)
+        tmp.close()
+        subprocess.run(
+            [
+                "powershell", "-NoProfile", "-Command",
+                f"Get-Content -Path '{tmp.name}' -Encoding UTF8 -Raw "
+                f"| Set-Clipboard"
+            ],
+            creationflags=0x08000000,
+            check=True,
+        )
+    finally:
+        os.unlink(tmp.name)
 
 
 def open_claude_ai():
