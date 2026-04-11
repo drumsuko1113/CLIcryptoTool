@@ -1,52 +1,46 @@
-"""ETH Trading Terminal - メインREPL"""
+"""ETH Trading Terminal v2.0 - Bloomberg風ダッシュボードUI"""
 import io
 import sys
+import threading
+import time
 
 # Windows cp932 エンコーディング問題を回避
 if sys.stdout.encoding != "utf-8":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
-from src.price import get_eth_prices, format_price_display
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.table import Table
+from rich import box
+
+from src.price import get_eth_prices
 from src.chart import (
-    fetch_klines, parse_closes, render_candlestick, format_indicators,
+    fetch_klines, parse_closes,
     calc_sma, calc_rsi, calc_macd,
 )
 from src.alert import AlertManager
 from src.position import PositionManager
-from src.news import fetch_news, filter_iran_news, format_news_display
+from src.news import fetch_news, filter_iran_news
 from src.analysis import analyze_market
 from src.ask import generate_prompt, copy_to_clipboard, open_claude_ai
+from src.dashboard import (
+    MarketState, build_dashboard,
+    COLOR_BORDER, COLOR_TITLE, COLOR_MUTED, COLOR_ACCENT,
+    COLOR_UP, COLOR_DOWN,
+)
 
-
-WELCOME = """
-╔══════════════════════════════════════════════════╗
-║         ETH Trading Terminal v1.0                ║
-║         ターミナルベース ETH トレード支援         ║
-╚══════════════════════════════════════════════════╝
-
-  /help でコマンド一覧を表示
-"""
-
-HELP_TEXT = """
-  コマンド一覧:
-  ─────────────────────────────────────
-  /price      現在価格表示（ETH/JPY・ETH/USD）
-  /chart      ローソク足チャート表示
-  /news       最新ニュース取得
-  /iran       イラン関連ニュースフィルタ
-  /analysis   ルールベース自動分析
-  /position   ポジション損益確認
-  /alert <価格>  アラート設定（JPY）
-  /alerts     アラート一覧表示
-  /ask        claude.ai連携プロンプト生成
-  /help       このヘルプを表示
-  /quit       終了
-  ─────────────────────────────────────
-"""
-
+console = Console()
 alert_manager = AlertManager()
 position_manager = PositionManager()
+market_state = MarketState()
+market_state.position_manager = position_manager
+market_state.alert_manager = alert_manager
+
+# バックグラウンドデータ更新用
+_data_lock = threading.Lock()
+_refresh_flag = threading.Event()
 
 
 def parse_command(user_input):
@@ -60,49 +54,166 @@ def parse_command(user_input):
     return cmd, args
 
 
+def refresh_market_data():
+    """市場データを最新に更新する"""
+    try:
+        prices = get_eth_prices()
+        klines = fetch_klines(limit=80)
+        closes = parse_closes(klines) if klines else []
+
+        with _data_lock:
+            if prices:
+                market_state.prices = prices
+            if klines:
+                market_state.klines = klines
+            if closes:
+                market_state.closes = closes
+            market_state.last_update = time.time()
+    except Exception:
+        pass
+
+
+def _bg_refresh_loop(interval=15):
+    """バックグラウンドでデータを定期更新するループ"""
+    while True:
+        refresh_market_data()
+        _refresh_flag.set()
+        time.sleep(interval)
+
+
+def render_dashboard():
+    """ダッシュボードを描画する"""
+    width = console.width
+    with _data_lock:
+        dashboard = build_dashboard(market_state, width=width)
+    console.clear()
+    console.print(dashboard)
+
+
+def _build_help_panel():
+    """ヘルプをrichパネルで表示する"""
+    table = Table(
+        show_header=True, header_style=f"bold {COLOR_ACCENT}",
+        border_style=COLOR_BORDER, box=box.SIMPLE_HEAVY,
+        expand=True, padding=(0, 2),
+    )
+    table.add_column("コマンド", style=f"bold {COLOR_UP}", min_width=18)
+    table.add_column("説明", style=COLOR_MUTED)
+
+    commands = [
+        ("/price", "現在価格表示"),
+        ("/chart", "ローソク足チャート（フル表示）"),
+        ("/news", "最新ニュース取得"),
+        ("/iran", "イラン関連ニュースフィルタ"),
+        ("/analysis", "ルールベース自動分析"),
+        ("/position", "ポジション損益確認"),
+        ("/alert <価格>", "アラート設定（JPY）"),
+        ("/alerts", "アラート一覧"),
+        ("/ask", "claude.ai連携プロンプト生成"),
+        ("/refresh", "ダッシュボード手動更新"),
+        ("/help", "このヘルプを表示"),
+        ("/quit", "終了"),
+    ]
+    for cmd, desc in commands:
+        table.add_row(cmd, desc)
+
+    return Panel(
+        table,
+        title=f"[bold {COLOR_TITLE}]コマンド一覧[/]",
+        border_style=COLOR_BORDER,
+        box=box.ROUNDED,
+        padding=(1, 1),
+    )
+
+
 def cmd_price():
     """価格表示コマンド"""
-    prices = get_eth_prices()
-    if prices is None:
-        print("  価格の取得に失敗しました。ネットワーク接続を確認してください。")
-        return
-    print(format_price_display(prices))
+    refresh_market_data()
+    render_dashboard()
 
 
 def cmd_chart():
-    """チャート表示コマンド"""
-    klines = fetch_klines()
-    if not klines:
-        print("  チャートデータの取得に失敗しました。")
-        return
-    print(render_candlestick(klines))
-    closes = parse_closes(klines)
-    print(format_indicators(closes))
+    """チャート表示コマンド（フル表示）"""
+    refresh_market_data()
+    render_dashboard()
 
 
 def cmd_news():
     """ニュース表示コマンド"""
-    print("  ニュースを取得中...")
+    console.print(f"\n  [bold {COLOR_ACCENT}]ニュースを取得中...[/]")
     entries = fetch_news(limit=10)
-    print(format_news_display(entries))
+
+    table = Table(
+        show_header=False, border_style=COLOR_BORDER,
+        box=box.ROUNDED, expand=True, padding=(0, 1),
+    )
+    table.add_column(ratio=1)
+
+    if not entries:
+        table.add_row(Text("  ニュースはありません", style=COLOR_MUTED))
+    else:
+        for i, entry in enumerate(entries):
+            text = Text()
+            text.append(f"  [{i+1}] ", style=f"bold {COLOR_ACCENT}")
+            text.append(f"{entry.title}\n", style="bold white")
+            pub = getattr(entry, "published", "")
+            text.append(f"      {pub}\n", style=COLOR_MUTED)
+            text.append(f"      {entry.link}", style=COLOR_MUTED)
+            table.add_row(text)
+
+    panel = Panel(
+        table,
+        title=f"[bold {COLOR_TITLE}]最新ニュース[/]",
+        border_style=COLOR_BORDER,
+        box=box.ROUNDED,
+    )
+    console.print(panel)
 
 
 def cmd_iran():
     """イラン関連ニュース表示コマンド"""
-    print("  イラン関連ニュースを検索中...")
+    console.print(f"\n  [bold {COLOR_ACCENT}]イラン関連ニュースを検索中...[/]")
     entries = fetch_news(limit=30)
     filtered = filter_iran_news(entries)
-    print(format_news_display(filtered, title="イラン関連ニュース"))
+
+    table = Table(
+        show_header=False, border_style=COLOR_BORDER,
+        box=box.ROUNDED, expand=True, padding=(0, 1),
+    )
+    table.add_column(ratio=1)
+
+    if not filtered:
+        table.add_row(Text("  イラン関連ニュースはありません", style=COLOR_MUTED))
+    else:
+        for i, entry in enumerate(filtered):
+            text = Text()
+            text.append(f"  [{i+1}] ", style=f"bold {COLOR_DOWN}")
+            text.append(f"{entry.title}\n", style="bold white")
+            pub = getattr(entry, "published", "")
+            text.append(f"      {pub}", style=COLOR_MUTED)
+            table.add_row(text)
+
+    panel = Panel(
+        table,
+        title=f"[bold {COLOR_DOWN}]イラン関連ニュース[/]",
+        border_style=COLOR_DOWN,
+        box=box.ROUNDED,
+    )
+    console.print(panel)
 
 
 def cmd_analysis():
     """自動分析コマンド"""
-    klines = fetch_klines()
-    if not klines:
-        print("  データの取得に失敗しました。")
+    if not market_state.has_data:
+        refresh_market_data()
+
+    with _data_lock:
+        closes = market_state.closes
+        prices = market_state.prices
+
+    if not closes or len(closes) < 26:
+        console.print(f"  [{COLOR_DOWN}]データ不足です[/]")
         return
-    closes = parse_closes(klines)
-    prices = get_eth_prices()
 
     rsi_vals = calc_rsi(closes, 14)
     macd_line, signal, histogram = calc_macd(closes)
@@ -120,51 +231,74 @@ def cmd_analysis():
         "sma25": sma25[-1] if sma25[-1] is not None else closes[-1],
         "current_price": closes[-1] if prices is None else prices["eth_usd"],
     }
-    print(analyze_market(indicators))
+
+    report = analyze_market(indicators)
+    panel = Panel(
+        Text(report),
+        title=f"[bold {COLOR_TITLE}]自動分析レポート[/]",
+        border_style=COLOR_BORDER,
+        box=box.ROUNDED,
+        padding=(1, 2),
+    )
+    console.print(panel)
 
 
 def cmd_position():
     """ポジション表示コマンド"""
-    prices = get_eth_prices()
-    if prices is None:
-        print("  価格の取得に失敗しました。")
+    if not market_state.prices:
+        refresh_market_data()
+    if not market_state.prices:
+        console.print(f"  [{COLOR_DOWN}]価格取得失敗[/]")
         return
-    print(position_manager.format_positions(prices["eth_usd"], prices["eth_jpy"]))
+    output = position_manager.format_positions(
+        market_state.prices["eth_usd"], market_state.prices["eth_jpy"]
+    )
+    panel = Panel(
+        Text(output),
+        title=f"[bold {COLOR_TITLE}]ポジション管理[/]",
+        border_style=COLOR_BORDER,
+        box=box.ROUNDED,
+        padding=(1, 2),
+    )
+    console.print(panel)
 
 
 def cmd_alert(args):
     """アラート設定コマンド"""
     if not args:
-        print(alert_manager.format_alerts())
+        console.print(alert_manager.format_alerts())
         return
     try:
         price = float(args[0])
         direction = args[1] if len(args) > 1 else "above"
         alert_manager.add_alert(price, direction)
-        print(f"  アラート設定: ¥{price:,.0f} {direction}")
-
+        dir_label = "以上" if direction == "above" else "以下"
+        console.print(
+            f"  [{COLOR_UP}]✓ アラート設定: ¥{price:,.0f} {dir_label}[/]"
+        )
         if not alert_manager._running:
             alert_manager.start_monitor(get_eth_prices)
-            print("  価格監視を開始しました")
+            console.print(f"  [{COLOR_ACCENT}]監視開始[/]")
     except ValueError:
-        print("  エラー: 価格は数値で指定してください")
+        console.print(f"  [{COLOR_DOWN}]エラー: 価格は数値で指定してください[/]")
 
 
 def cmd_alerts():
     """アラート一覧表示コマンド"""
-    print(alert_manager.format_alerts())
+    console.print(alert_manager.format_alerts())
 
 
 def cmd_ask():
     """claude.ai連携コマンド"""
-    klines = fetch_klines()
-    if not klines:
-        print("  データの取得に失敗しました。")
-        return
-    closes = parse_closes(klines)
-    prices = get_eth_prices()
-    if prices is None:
-        print("  価格の取得に失敗しました。")
+    if not market_state.has_data:
+        refresh_market_data()
+
+    with _data_lock:
+        closes = market_state.closes
+        prices = market_state.prices
+
+    if not prices or not closes:
+        console.print(f"  [{COLOR_DOWN}]データ取得失敗[/]")
         return
 
     rsi_vals = calc_rsi(closes, 14)
@@ -188,20 +322,26 @@ def cmd_ask():
     prompt = generate_prompt(market_data)
     copy_to_clipboard(prompt)
     open_claude_ai()
-    print("  プロンプトをクリップボードにコピーしました")
-    print("  claude.ai を開きました。貼り付けて質問してください。")
+    console.print(f"  [{COLOR_UP}]✓ プロンプトをクリップボードにコピーしました[/]")
+    console.print(f"  [{COLOR_ACCENT}]claude.ai を開きました。貼り付けて質問してください。[/]")
 
 
 def cmd_help():
     """ヘルプ表示コマンド"""
-    print(HELP_TEXT)
+    console.print(_build_help_panel())
 
 
 def cmd_quit():
     """終了コマンド"""
     alert_manager.stop_monitor()
-    print("  終了します。お疲れ様でした！")
+    console.print(f"\n  [{COLOR_ACCENT}]終了します。お疲れ様でした！[/]\n")
     sys.exit(0)
+
+
+def cmd_refresh():
+    """ダッシュボード手動更新コマンド"""
+    refresh_market_data()
+    render_dashboard()
 
 
 COMMANDS = {
@@ -216,32 +356,57 @@ COMMANDS = {
     "ask": lambda args: cmd_ask(),
     "help": lambda args: cmd_help(),
     "quit": lambda args: cmd_quit(),
+    "refresh": lambda args: cmd_refresh(),
+    "r": lambda args: cmd_refresh(),
 }
 
 
+def _prompt_input():
+    """コマンドプロンプトを表示して入力を受け付ける"""
+    try:
+        console.print(
+            f"\n  [{COLOR_BORDER}]─────────────────────────────────────[/]"
+        )
+        user_input = console.input(
+            f"  [bold {COLOR_ACCENT}]ETH>[/] "
+        )
+        return user_input
+    except (KeyboardInterrupt, EOFError):
+        return "/quit"
+
+
 def main():
-    """メインREPLループ"""
-    print(WELCOME)
+    """メインREPLループ（ダッシュボードUI）"""
+    # バックグラウンドデータ更新スレッド開始
+    bg_thread = threading.Thread(target=_bg_refresh_loop, args=(15,), daemon=True)
+    bg_thread.start()
+
+    # 初期データ取得を待つ
+    console.print(f"\n  [bold {COLOR_ACCENT}]◆ ETH TRADING TERMINAL v2.0[/]")
+    console.print(f"  [{COLOR_MUTED}]データを取得中...[/]\n")
+    _refresh_flag.wait(timeout=15)
+
+    # 初回ダッシュボード描画
+    render_dashboard()
 
     while True:
-        try:
-            user_input = input("\n  ETH> ")
-            cmd, args = parse_command(user_input)
+        user_input = _prompt_input()
+        cmd, args = parse_command(user_input)
 
-            if cmd is None:
-                continue
+        if cmd is None:
+            # 空Enter → ダッシュボード再描画
+            if _refresh_flag.is_set():
+                _refresh_flag.clear()
+            render_dashboard()
+            continue
 
-            if cmd in COMMANDS:
-                COMMANDS[cmd](args)
-            else:
-                print(f"  不明なコマンド: /{cmd}")
-                print("  /help でコマンド一覧を確認してください")
-
-        except KeyboardInterrupt:
-            print("\n")
-            cmd_quit()
-        except EOFError:
-            cmd_quit()
+        if cmd in COMMANDS:
+            COMMANDS[cmd](args)
+        else:
+            console.print(
+                f"  [{COLOR_DOWN}]不明なコマンド: /{cmd}[/]  "
+                f"[{COLOR_MUTED}]/help でコマンド一覧を確認[/]"
+            )
 
 
 if __name__ == "__main__":
