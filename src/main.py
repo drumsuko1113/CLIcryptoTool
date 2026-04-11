@@ -30,6 +30,7 @@ from src.dashboard import (
     COLOR_BORDER, COLOR_TITLE, COLOR_MUTED, COLOR_ACCENT,
     COLOR_UP, COLOR_DOWN,
 )
+from src.readme import build_readme
 
 console = Console()
 alert_manager = AlertManager()
@@ -113,6 +114,7 @@ def _build_help_panel():
         ("/alerts", "アラート一覧"),
         ("/ask", "claude.ai連携プロンプト生成"),
         ("/refresh", "ダッシュボード手動更新"),
+        ("/readme [セクション]", "説明書（指標の読み方等）"),
         ("/help", "このヘルプを表示"),
         ("/quit", "終了"),
     ]
@@ -360,6 +362,12 @@ def cmd_help():
     console.print(_build_help_panel())
 
 
+def cmd_readme(args):
+    """説明書表示コマンド"""
+    section = args[0] if args else None
+    console.print(build_readme(section))
+
+
 def cmd_quit():
     """終了コマンド"""
     alert_manager.stop_monitor()
@@ -384,6 +392,7 @@ COMMANDS = {
     "alerts": lambda args: cmd_alerts(),
     "ask": lambda args: cmd_ask(),
     "help": lambda args: cmd_help(),
+    "readme": cmd_readme,
     "quit": lambda args: cmd_quit(),
     "refresh": lambda args: cmd_refresh(),
     "r": lambda args: cmd_refresh(),

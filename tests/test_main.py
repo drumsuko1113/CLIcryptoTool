@@ -49,7 +49,7 @@ class TestCommands:
         required = [
             "price", "chart", "news", "iran",
             "analysis", "position", "alert", "ask",
-            "help", "quit",
+            "help", "quit", "readme",
         ]
         for key in required:
             assert key in COMMANDS, f"Missing command: {key}"
