@@ -33,6 +33,16 @@ class TestParseCommand:
         cmd, args = parse_command("/quit")
         assert cmd == "quit"
 
+    def test_alert_remove(self):
+        cmd, args = parse_command("/alert remove 0")
+        assert cmd == "alert"
+        assert args == ["remove", "0"]
+
+    def test_alert_clear(self):
+        cmd, args = parse_command("/alert clear")
+        assert cmd == "alert"
+        assert args == ["clear"]
+
 
 class TestCommands:
     def test_commands_dict_has_required_keys(self):
