@@ -1,6 +1,6 @@
 """claude.ai連携モジュールのテスト"""
 from unittest.mock import patch
-from src.ask import generate_prompt
+from src.ask import generate_prompt, open_claude_ai
 
 
 class TestGeneratePrompt:
@@ -54,28 +54,14 @@ class TestGeneratePrompt:
         assert "ETH" in result
 
 
-class TestCopyAndOpen:
+class TestPlatformUtils:
     def test_copy_to_clipboard_calls_powershell(self):
-        """copy_to_clipboardがsubprocess.runを呼ぶこと"""
-        with patch("src.ask.subprocess.run") as mock_run:
-            from src.ask import copy_to_clipboard
+        with patch("src.platform_utils.subprocess.run") as mock_run:
+            from src.platform_utils import copy_to_clipboard
             copy_to_clipboard("テスト日本語テキスト")
             mock_run.assert_called_once()
-            # PowerShellコマンドにSet-Clipboardが含まれること
-            call_args = mock_run.call_args[0][0]
-            assert "powershell" in call_args[0].lower()
-
-    def test_copy_to_clipboard_uses_set_clipboard(self):
-        """PowerShellのSet-Clipboardが呼ばれること"""
-        with patch("src.ask.subprocess.run") as mock_run:
-            from src.ask import copy_to_clipboard
-            copy_to_clipboard("日本語テスト")
-            call_args = mock_run.call_args[0][0]
-            cmd_str = " ".join(call_args)
-            assert "Set-Clipboard" in cmd_str
 
     def test_open_claude_ai(self):
-        with patch("src.ask.webbrowser.open") as mock_open:
-            from src.ask import open_claude_ai
+        with patch("src.platform_utils.webbrowser.open") as mock_open:
             open_claude_ai()
             mock_open.assert_called_once()

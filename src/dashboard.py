@@ -7,33 +7,14 @@ from rich.table import Table
 from rich.console import Group
 from rich import box
 
-from src.chart import calc_sma, calc_rsi, calc_macd
-
-# ──────────────────── カラーテーマ ────────────────────
-COLOR_BG_HEADER = "#003366"
-COLOR_BORDER = "#1a6db0"
-COLOR_BORDER_DIM = "#0d3b66"
-COLOR_UP = "#00e5ff"
-COLOR_DOWN = "#ff5252"
-COLOR_LABEL = "#8899aa"
-COLOR_VALUE = "#e0f0ff"
-COLOR_ACCENT = "#4fc3f7"
-COLOR_MUTED = "#607080"
-COLOR_TITLE = "#80d8ff"
-COLOR_WARN = "#ffab40"
-
-STYLE_UP = f"bold {COLOR_UP}"
-STYLE_DOWN = f"bold {COLOR_DOWN}"
-STYLE_LABEL = COLOR_LABEL
-STYLE_VALUE = f"bold {COLOR_VALUE}"
-STYLE_BORDER = COLOR_BORDER
-
-# ──────────────────── チャート文字 ────────────────────
-CHAR_BODY_UP = "┃"
-CHAR_BODY_DOWN = "┃"
-CHAR_WICK = "│"
-CHAR_BAR_FILL = "█"
-CHAR_BAR_EMPTY = "░"
+from src.chart import calc_sma
+from src.theme import (
+    COLOR_BG_HEADER, COLOR_BORDER, COLOR_BORDER_DIM,
+    COLOR_UP, COLOR_DOWN, COLOR_LABEL, COLOR_VALUE,
+    COLOR_ACCENT, COLOR_MUTED, COLOR_TITLE, COLOR_WARN,
+    STYLE_UP, STYLE_DOWN, STYLE_LABEL, STYLE_VALUE,
+    CHAR_BODY_UP, CHAR_BODY_DOWN, CHAR_WICK, CHAR_BAR_FILL, CHAR_BAR_EMPTY,
+)
 
 
 class MarketState:
@@ -46,10 +27,33 @@ class MarketState:
         self.position_manager = None
         self.alert_manager = None
         self.last_update = None
+        # 計算済みテクニカル指標
+        self.rsi = None
+        self.macd = None
+        self.signal = None
+        self.histogram = None
+        self.sma5 = []
+        self.sma13 = []
+        self.sma25 = []
 
     @property
     def has_data(self):
         return self.prices is not None and len(self.closes) > 0
+
+    def compute_indicators(self):
+        """テクニカル指標を一括計算してキャッシュする"""
+        from src.chart import calc_rsi, calc_macd
+        if len(self.closes) < 5:
+            return
+        self.sma5 = calc_sma(self.closes, 5)
+        self.sma13 = calc_sma(self.closes, 13)
+        self.sma25 = calc_sma(self.closes, 25)
+        rsi_vals = calc_rsi(self.closes, 14)
+        self.rsi = rsi_vals[-1] if rsi_vals[-1] is not None else None
+        macd_line, signal, histogram = calc_macd(self.closes)
+        self.macd = macd_line[-1]
+        self.signal = signal[-1]
+        self.histogram = histogram[-1]
 
 
 def _arrow(change):
@@ -267,17 +271,13 @@ def build_indicators_panel(state):
             box=box.ROUNDED,
         )
 
-    rsi_vals = calc_rsi(state.closes, 14)
-    rsi = rsi_vals[-1] if rsi_vals[-1] is not None else 50.0
-
-    macd_line, signal, histogram = calc_macd(state.closes)
-    macd_v = macd_line[-1] if macd_line[-1] is not None else 0.0
-    sig_v = signal[-1] if signal[-1] is not None else 0.0
-    hist_v = histogram[-1] if histogram[-1] is not None else 0.0
-
-    sma5 = calc_sma(state.closes, 5)
-    sma13 = calc_sma(state.closes, 13)
-    sma25 = calc_sma(state.closes, 25)
+    rsi = state.rsi if state.rsi is not None else 50.0
+    macd_v = state.macd if state.macd is not None else 0.0
+    sig_v = state.signal if state.signal is not None else 0.0
+    hist_v = state.histogram if state.histogram is not None else 0.0
+    sma5 = state.sma5
+    sma13 = state.sma13
+    sma25 = state.sma25
 
     content = Text()
 

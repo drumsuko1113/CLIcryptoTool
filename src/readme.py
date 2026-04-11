@@ -5,13 +5,10 @@ from rich.table import Table
 from rich.console import Group
 from rich import box
 
-COLOR_BORDER = "#1a6db0"
-COLOR_TITLE = "#80d8ff"
-COLOR_ACCENT = "#4fc3f7"
-COLOR_MUTED = "#607080"
-COLOR_UP = "#00e5ff"
-COLOR_DOWN = "#ff5252"
-COLOR_WARN = "#ffab40"
+from src.theme import (
+    COLOR_BORDER, COLOR_TITLE, COLOR_ACCENT, COLOR_MUTED,
+    COLOR_UP, COLOR_DOWN,
+)
 
 
 def _section(title, content):

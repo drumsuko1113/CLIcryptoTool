@@ -9,9 +9,8 @@ from src.dashboard import (
     build_position_panel,
     build_dashboard,
     MarketState,
-    STYLE_UP,
-    STYLE_DOWN,
 )
+from src.theme import STYLE_UP, STYLE_DOWN
 
 
 def _sample_market_state():

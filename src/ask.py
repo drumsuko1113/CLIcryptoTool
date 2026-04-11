@@ -1,6 +1,5 @@
 """claude.ai連携モジュール"""
-import subprocess
-import webbrowser
+from src.platform_utils import copy_to_clipboard, open_url  # noqa: F401
 
 CLAUDE_AI_URL = "https://claude.ai"
 
@@ -34,30 +33,6 @@ def generate_prompt(market_data):
     return prompt
 
 
-def copy_to_clipboard(text):
-    """テキストをクリップボードにコピーする（Windows）"""
-    import tempfile
-    import os
-    # 一時ファイルにUTF-8で書き出し、PowerShellでUTF-8として読み込む
-    tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".txt", encoding="utf-8", delete=False
-    )
-    try:
-        tmp.write(text)
-        tmp.close()
-        subprocess.run(
-            [
-                "powershell", "-NoProfile", "-Command",
-                f"Get-Content -Path '{tmp.name}' -Encoding UTF8 -Raw "
-                f"| Set-Clipboard"
-            ],
-            creationflags=0x08000000,
-            check=True,
-        )
-    finally:
-        os.unlink(tmp.name)
-
-
 def open_claude_ai():
     """claude.aiをブラウザで開く"""
-    webbrowser.open(CLAUDE_AI_URL)
+    open_url(CLAUDE_AI_URL)
