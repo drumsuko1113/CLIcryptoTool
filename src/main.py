@@ -14,6 +14,10 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.table import Table
 from rich import box
+from prompt_toolkit import prompt as pt_prompt
+from prompt_toolkit.formatted_text import HTML
+
+from src.completer import EthCommandCompleter
 
 from src.price import get_eth_prices
 from src.chart import (
@@ -399,14 +403,19 @@ COMMANDS = {
 }
 
 
+_completer = EthCommandCompleter()
+
+
 def _prompt_input():
-    """コマンドプロンプトを表示して入力を受け付ける"""
+    """コマンドプロンプトを表示して入力を受け付ける（補完付き）"""
     try:
         console.print(
             f"\n  [{COLOR_BORDER}]─────────────────────────────────────[/]"
         )
-        user_input = console.input(
-            f"  [bold {COLOR_ACCENT}]ETH>[/] "
+        user_input = pt_prompt(
+            HTML("<b><skyblue>  ETH&gt; </skyblue></b>"),
+            completer=_completer,
+            complete_while_typing=True,
         )
         return user_input
     except (KeyboardInterrupt, EOFError):
