@@ -9,6 +9,7 @@ from src.dashboard import (
     build_position_panel,
     build_dashboard,
     MarketState,
+    _build_chart_text,
 )
 from src.theme import STYLE_UP, STYLE_DOWN
 
@@ -79,6 +80,69 @@ class TestBuildChartPanel:
         result = build_chart_panel(state, width=60)
         console = Console(file=MagicMock(), width=80)
         console.print(result)
+
+
+class TestChartTextAxis:
+    """チャート縦軸のラベル描画（USD 左・JPY 右）をテストする"""
+
+    def _sample_args(self):
+        state = _sample_market_state()
+        return state.klines, state.closes
+
+    def test_usd_axis_always_rendered(self):
+        klines, closes = self._sample_args()
+        text = _build_chart_text(klines, closes, width=40, height=8).plain
+        assert "$" in text
+
+    def test_jpy_axis_appears_when_rate_given(self):
+        klines, closes = self._sample_args()
+        text = _build_chart_text(
+            klines, closes, width=40, height=8, usd_jpy_rate=155.0
+        ).plain
+        assert "¥" in text
+
+    def test_jpy_axis_absent_without_rate(self):
+        klines, closes = self._sample_args()
+        text = _build_chart_text(klines, closes, width=40, height=8).plain
+        assert "¥" not in text
+
+    def test_jpy_value_matches_usd_times_rate(self):
+        """JPY ラベルは USD × レートを四捨五入した値になっている"""
+        klines, closes = self._sample_args()
+        rate = 150.0
+        text = _build_chart_text(
+            klines, closes, width=40, height=8, usd_jpy_rate=rate
+        ).plain
+        # 最高値行の USD / JPY を抽出（右寄せの先行スペースを skip）
+        first_line = text.split("\n")[0]
+        usd_part = first_line.split("$", 1)[1].strip().split()[0].replace(",", "")
+        jpy_part = first_line.rsplit("¥", 1)[1].strip().split()[0].replace(",", "")
+        assert int(jpy_part) == round(float(usd_part) * rate)
+
+    def test_build_chart_panel_uses_rate_from_state(self):
+        """state.prices にレートがあれば build_chart_panel が JPY 軸を描く"""
+        import io
+        state = _sample_market_state()
+        buf = io.StringIO()
+        console = Console(
+            file=buf, width=120, force_terminal=False, legacy_windows=False
+        )
+        console.print(build_chart_panel(state, width=80))
+        assert "¥" in buf.getvalue()
+
+    def test_build_chart_panel_no_rate_no_jpy(self):
+        """state.prices が None の場合は JPY 軸なし"""
+        import io
+        state = MarketState()
+        # klines だけセットして prices は None のまま
+        state.klines = _sample_market_state().klines
+        state.closes = _sample_market_state().closes
+        buf = io.StringIO()
+        console = Console(
+            file=buf, width=120, force_terminal=False, legacy_windows=False
+        )
+        console.print(build_chart_panel(state, width=80))
+        assert "¥" not in buf.getvalue()
 
 
 class TestBuildIndicatorsPanel:
