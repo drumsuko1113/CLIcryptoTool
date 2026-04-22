@@ -163,8 +163,11 @@ def build_price_panel(state):
     )
 
 
-def _build_chart_text(klines, closes, width=60, height=16):
-    """ローソク足チャートをrich Textオブジェクトとして構築する"""
+def _build_chart_text(klines, closes, width=60, height=16, usd_jpy_rate=None):
+    """ローソク足チャートをrich Textオブジェクトとして構築する
+
+    usd_jpy_rate が指定された場合は右側に円建て価格軸を併記する。
+    """
     if not klines:
         return Text("  チャートデータなし", style=COLOR_MUTED)
 
@@ -230,11 +233,14 @@ def _build_chart_text(klines, closes, width=60, height=16):
     result = Text()
     for row in range(height):
         price_at_row = price_max - (row / max(1, height - 1)) * price_range
-        label = f"${price_at_row:>7.0f} "
+        label = f"${price_at_row:>7,.0f} "
         result.append(label, style=COLOR_MUTED)
         for col in range(display_count):
             char, style = grid[row][col]
             result.append(char, style=style)
+        if usd_jpy_rate:
+            jpy_at_row = price_at_row * usd_jpy_rate
+            result.append(f" ¥{jpy_at_row:>9,.0f}", style=COLOR_MUTED)
         result.append("\n")
 
     # SMA凡例
@@ -248,9 +254,12 @@ def _build_chart_text(klines, closes, width=60, height=16):
 
 def build_chart_panel(state, width=60):
     """チャートパネルを構築する"""
+    jpy_rate = state.prices.get("usd_jpy_rate") if state.prices else None
+    jpy_label_width = 11 if jpy_rate else 0
     chart_text = _build_chart_text(
         state.klines, state.closes,
-        width=max(20, width - 16), height=14
+        width=max(20, width - 16 - jpy_label_width), height=14,
+        usd_jpy_rate=jpy_rate,
     )
     return Panel(
         chart_text,
