@@ -176,6 +176,23 @@ class TestFormatPositionsSummary:
         # 全体損益 = 200 + 50 = 250
         assert "250.00" in out
 
+    def test_format_with_custom_title(self):
+        """Issue #37: title 引数でセクション見出しを変更できる"""
+        self.manager.add_position(2500.0, 1.0, "USD")
+        out = self.manager.format_positions(
+            2700.0, 400000.0, title="長期保有ポジション"
+        )
+        assert "長期保有ポジション" in out
+
+    def test_format_without_footer(self):
+        """Issue #37: include_footer=False で累計利益行を抑制できる"""
+        self.manager.add_position(2500.0, 1.0, "USD")
+        out = self.manager.format_positions(
+            2700.0, 400000.0, include_footer=False
+        )
+        assert "スイング累計利益" not in out
+        assert "取引回数" not in out
+
     def test_summary_per_currency_when_mixed(self):
         """USD/JPY 混在時は通貨ごとに集計（>= 2 件のみ）"""
         self.manager.add_position(2500.0, 1.0, "USD")

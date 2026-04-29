@@ -4,16 +4,18 @@ from src.platform_utils import copy_to_clipboard, open_url  # noqa: F401
 CLAUDE_AI_URL = "https://claude.ai"
 
 
-def _format_positions_section(positions, current_prices):
-    """ポジションセクションを生成する（Issue #36）
+def _format_positions_section(positions, current_prices,
+                              header="【保有ポジション】"):
+    """ポジションセクションを生成する（Issue #36, #37）
 
     positions: list[dict]（entry_price / amount / currency を持つ）
     current_prices: dict {"USD": float, "JPY": float}
+    header: セクション見出し（スイング/長期で切り替え用）
     """
     if not positions:
-        return "【保有ポジション】\n- 現在ポジションなし\n"
+        return f"{header}\n- 現在ポジションなし\n"
 
-    lines = ["【保有ポジション】"]
+    lines = [header]
     # 各ポジション行
     for i, pos in enumerate(positions):
         cur = pos["currency"]
@@ -60,11 +62,12 @@ def _format_positions_section(positions, current_prices):
 
 
 def generate_prompt(market_data, positions=None, current_prices=None,
-                    realized_profit=None):
+                    realized_profit=None, long_positions=None):
     """現在の市場データからclaude.ai用プロンプトを生成する
 
     Issue #36: positions / current_prices / realized_profit を渡すと
     ポジション状況もプロンプトに反映する。
+    Issue #37: long_positions を渡すと長期保有分を別セクションで反映する。
     """
     prompt = f"""あなたは暗号通貨のテクニカル分析の専門家です。
 以下のETH（イーサリアム）の現在の市場データを分析し、
@@ -84,13 +87,27 @@ def generate_prompt(market_data, positions=None, current_prices=None,
 - SMA25: ${market_data['sma25']:,.2f}
 """
 
-    # ポジション情報（Issue #36）
-    if positions is not None:
+    # ポジション情報（Issue #36, #37）
+    if positions is not None or long_positions is not None:
         prices = current_prices or {
             "USD": market_data["eth_usd"],
             "JPY": market_data["eth_jpy"],
         }
-        prompt += "\n" + _format_positions_section(positions, prices)
+        # スイング分（Issue #37 で長期と併存する場合は見出しを変える）
+        if positions is not None:
+            header = (
+                "【スイングポジション（短期売買対象）】"
+                if long_positions else "【保有ポジション】"
+            )
+            prompt += "\n" + _format_positions_section(
+                positions, prices, header=header
+            )
+        # 長期保有分
+        if long_positions is not None:
+            prompt += "\n" + _format_positions_section(
+                long_positions, prices,
+                header="【長期保有ポジション（HODL、原則ホールド）】",
+            )
         if realized_profit is not None:
             prompt += f"- スイング累計実現益: ${realized_profit:,.2f}\n"
 
@@ -102,8 +119,14 @@ def generate_prompt(market_data, positions=None, current_prices=None,
 4. リスク要因
 5. 総合的な売買判断（買い/売り/様子見）"""
 
-    if positions:
-        prompt += """
+    if positions or long_positions:
+        if long_positions:
+            prompt += """
+6. スイング分について保持/利確/損切りすべきか
+7. スイング分の平均取得単価から見たナンピン/利確ラインの提案
+8. 長期保有分は原則ホールドだが、相場急変時の損切りラインの目安"""
+        else:
+            prompt += """
 6. 保有ポジションを保持/利確/損切りすべきか
 7. 平均取得単価から見たナンピン/利確ラインの提案"""
 
