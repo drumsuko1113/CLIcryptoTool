@@ -131,6 +131,40 @@ class TestGeneratePromptWithPositions:
         )
         assert "1,234.56" in result or "1234.56" in result
 
+    def test_long_positions_separate_section(self):
+        """Issue #37: 長期保有ポジションはスイング分と別セクションで出る"""
+        positions = [
+            {"entry_price": 2500.0, "amount": 1.0, "currency": "USD"},
+        ]
+        long_positions = [
+            {"entry_price": 1800.0, "amount": 2.0, "currency": "USD"},
+        ]
+        result = generate_prompt(
+            self._market_data(),
+            positions=positions,
+            long_positions=long_positions,
+            current_prices={"USD": 2700.0, "JPY": 405000.0},
+        )
+        # 両セクションのラベルが存在
+        assert "スイング" in result
+        assert "長期保有" in result or "長期" in result
+        # 両ポジションの仕入値が含まれる
+        assert "2,500" in result or "2500" in result
+        assert "1,800" in result or "1800" in result
+
+    def test_long_positions_only_when_swing_empty(self):
+        """スイングなし・長期のみでも長期セクションが出る"""
+        long_positions = [
+            {"entry_price": 1800.0, "amount": 2.0, "currency": "USD"},
+        ]
+        result = generate_prompt(
+            self._market_data(),
+            positions=[],
+            long_positions=long_positions,
+            current_prices={"USD": 2700.0, "JPY": 405000.0},
+        )
+        assert "1,800" in result or "1800" in result
+
     def test_backwards_compat_no_kwargs(self):
         """既存の呼び出し（market_data のみ）でも動く"""
         result = generate_prompt(self._market_data())

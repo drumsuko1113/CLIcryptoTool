@@ -25,10 +25,13 @@ class CommandHandler:
     """コマンドハンド�� - 共有状態を保持してコマンドを実行する"""
 
     def __init__(self, market_state, alert_manager, position_manager,
-                 refresh_fn, render_fn, data_lock):
+                 refresh_fn, render_fn, data_lock,
+                 long_position_manager=None):
         self.state = market_state
         self.alerts = alert_manager
         self.positions = position_manager
+        # Issue #37: 長期保有ポジション（任意）
+        self.long_positions = long_position_manager
         self.refresh = refresh_fn
         self.render = render_fn
         self.lock = data_lock
@@ -97,23 +100,7 @@ class CommandHandler:
 
     def cmd_position(self, args):
         if args:
-            subcmd = args[0].lower()
-            if subcmd == "add":
-                self._position_add(args[1:])
-                return
-            if subcmd == "remove":
-                self._position_remove(args[1:])
-                return
-            if subcmd == "clear":
-                self._position_clear()
-                return
-            console.print(
-                f"  [{COLOR_DOWN}]不明なサブコマンド: {args[0]}[/]"
-            )
-            console.print(
-                f"  [{COLOR_MUTED}]使い方: /position [add <価格> <数量> "
-                f"[USD|JPY] | remove <番号> | clear][/]"
-            )
+            self._handle_position_subcommand(args, self.positions, "/position")
             return
 
         if not self.state.prices:
@@ -121,9 +108,32 @@ class CommandHandler:
         if not self.state.prices:
             console.print(f"  [{COLOR_DOWN}]価格取得失敗[/]")
             return
-        output = self.positions.format_positions(
-            self.state.prices["eth_usd"], self.state.prices["eth_jpy"]
+
+        usd = self.state.prices["eth_usd"]
+        jpy = self.state.prices["eth_jpy"]
+
+        # スイング分（決済履歴フッターはスイング側にだけ付ける）
+        sections = [
+            self.positions.format_positions(
+                usd, jpy, title="スイングポジション", include_footer=False
+            )
+        ]
+        # Issue #37: 長期保有ポジションがあれば別セクションで併記
+        if self.long_positions and self.long_positions.positions:
+            sections.append(
+                self.long_positions.format_positions(
+                    usd, jpy,
+                    title="長期保有ポジション", include_footer=False,
+                )
+            )
+        # 累計実現益はスイング manager から最後に
+        sections.append(
+            "-" * 50
+            + f"\n  スイング累計利益: ${self.positions.total_profit:,.2f}"
+            + f"\n  取引回数: {len(self.positions.trade_history)}回"
+            + "\n" + "=" * 50
         )
+        output = "\n".join(sections)
         panel = Panel(
             Text(output),
             title=f"[bold {COLOR_TITLE}]ポジション管理[/]",
@@ -133,11 +143,58 @@ class CommandHandler:
         )
         console.print(panel)
 
-    def _position_add(self, args):
-        """/position add <価格> <数量> [USD|JPY]"""
+    def cmd_longposition(self, args):
+        """/longposition: 長期保有専用ポジション管理（Issue #37）"""
+        if self.long_positions is None:
+            console.print(
+                f"  [{COLOR_DOWN}]長期保有ポジション機能は無効です[/]"
+            )
+            return
+        if args:
+            self._handle_position_subcommand(
+                args, self.long_positions, "/longposition"
+            )
+            return
+        if not self.state.prices:
+            self.refresh()
+        if not self.state.prices:
+            console.print(f"  [{COLOR_DOWN}]価格取得失敗[/]")
+            return
+        output = self.long_positions.format_positions(
+            self.state.prices["eth_usd"], self.state.prices["eth_jpy"],
+            title="長期保有ポジション", include_footer=False,
+        )
+        panel = Panel(
+            Text(output),
+            title=f"[bold {COLOR_TITLE}]長期保有ポジション[/]",
+            border_style=COLOR_BORDER,
+            box=box.ROUNDED,
+            padding=(1, 2),
+        )
+        console.print(panel)
+
+    def _handle_position_subcommand(self, args, manager, cmd_label):
+        """add / remove / clear をどちらの manager 向けにも適用するヘルパー"""
+        subcmd = args[0].lower()
+        if subcmd == "add":
+            self._position_add(args[1:], manager, cmd_label)
+            return
+        if subcmd == "remove":
+            self._position_remove(args[1:], manager, cmd_label)
+            return
+        if subcmd == "clear":
+            self._position_clear(manager)
+            return
+        console.print(f"  [{COLOR_DOWN}]不明なサブコマンド: {args[0]}[/]")
+        console.print(
+            f"  [{COLOR_MUTED}]使い方: {cmd_label} [add <価格> <数量> "
+            f"[USD|JPY] | remove <番号> | clear][/]"
+        )
+
+    def _position_add(self, args, manager, cmd_label):
         if len(args) < 2:
             console.print(
-                f"  [{COLOR_DOWN}]使い方: /position add <価格> <数量> [USD|JPY][/]"
+                f"  [{COLOR_DOWN}]使い方: {cmd_label} add <価格> <数量> [USD|JPY][/]"
             )
             return
         try:
@@ -154,36 +211,34 @@ class CommandHandler:
                 f"  [{COLOR_DOWN}]エラー: 通貨は USD または JPY を指定してください[/]"
             )
             return
-        self.positions.add_position(price, amount, currency)
-        self.positions.save()
+        manager.add_position(price, amount, currency)
+        manager.save()
         sym = "$" if currency == "USD" else "¥"
         console.print(
             f"  [{COLOR_UP}]✓ ポジション追加: {sym}{price:,.2f} x {amount} ETH[/]"
         )
 
-    def _position_remove(self, args):
-        """/position remove <番号>"""
+    def _position_remove(self, args, manager, cmd_label):
         if not args:
-            console.print(f"  [{COLOR_DOWN}]使い方: /position remove <番号>[/]")
+            console.print(f"  [{COLOR_DOWN}]使い方: {cmd_label} remove <番号>[/]")
             return
         try:
             index = int(args[0])
         except ValueError:
             console.print(f"  [{COLOR_DOWN}]エラー: 番号は数値で指定してください[/]")
             return
-        if self.positions.remove_position(index):
-            self.positions.save()
+        if manager.remove_position(index):
+            manager.save()
             console.print(f"  [{COLOR_UP}]✓ ポジション [{index}] を削除しました[/]")
         else:
             console.print(
                 f"  [{COLOR_DOWN}]エラー: 番号 {index} のポジションは存在しません[/]"
             )
 
-    def _position_clear(self):
-        """/position clear"""
-        count = len(self.positions.positions)
-        self.positions.clear_positions()
-        self.positions.save()
+    def _position_clear(self, manager):
+        count = len(manager.positions)
+        manager.clear_positions()
+        manager.save()
         console.print(f"  [{COLOR_UP}]✓ {count}件のポジションを全削除しました[/]")
 
     def cmd_alert(self, args):
@@ -255,9 +310,14 @@ class CommandHandler:
             "sma25": _last_or(self.state.sma25, closes[-1]),
         }
 
+        long_positions = (
+            list(self.long_positions.positions)
+            if self.long_positions else None
+        )
         prompt = generate_prompt(
             market_data,
             positions=list(self.positions.positions),
+            long_positions=long_positions,
             current_prices={
                 "USD": prices["eth_usd"],
                 "JPY": prices["eth_jpy"],
@@ -294,6 +354,8 @@ class CommandHandler:
             "iran": self.cmd_iran,
             "analysis": self.cmd_analysis,
             "position": self.cmd_position,
+            "longposition": self.cmd_longposition,
+            "long": self.cmd_longposition,
             "alert": self.cmd_alert,
             "alerts": self.cmd_alerts,
             "ask": self.cmd_ask,
@@ -359,6 +421,10 @@ def build_help_panel():
         ("/position add <価格> <数量> [USD|JPY]", "ポジション追加"),
         ("/position remove <番号>", "ポジション削除"),
         ("/position clear", "ポジション全削除"),
+        ("/longposition", "長期保有ポジション一覧"),
+        ("/longposition add <価格> <数量> [USD|JPY]", "長期保有追加"),
+        ("/longposition remove <番号>", "長期保有削除"),
+        ("/longposition clear", "長期保有全削除"),
         ("/alert <価格>", "アラート作成（JPY）"),
         ("/alert remove <番号>", "アラート削除"),
         ("/alert clear", "アラート全削除"),

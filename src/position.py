@@ -120,11 +120,17 @@ class PositionManager:
         except (json.JSONDecodeError, KeyError):
             pass
 
-    def format_positions(self, current_usd, current_jpy):
-        """ポジション情報をフォーマットして返す"""
+    def format_positions(self, current_usd, current_jpy,
+                         title="ポジション管理", include_footer=True):
+        """ポジション情報をフォーマットして返す
+
+        title: セクション見出し（Issue #37: 長期保有との区別用）
+        include_footer: スイング累計利益・取引回数の行を含めるか
+            （長期セクションでは False で抑制）
+        """
         lines = [
             "=" * 50,
-            "  ポジション管理",
+            f"  {title}",
             "=" * 50,
         ]
 
@@ -175,8 +181,9 @@ class PositionManager:
                 f"({sign}{agg['pnl_percent']:.2f}%)"
             )
 
-        lines.append("-" * 50)
-        lines.append(f"  スイング累計利益: ${self.total_profit:,.2f}")
-        lines.append(f"  取引回数: {len(self.trade_history)}回")
+        if include_footer:
+            lines.append("-" * 50)
+            lines.append(f"  スイング累計利益: ${self.total_profit:,.2f}")
+            lines.append(f"  取引回数: {len(self.trade_history)}回")
         lines.append("=" * 50)
         return "\n".join(lines)

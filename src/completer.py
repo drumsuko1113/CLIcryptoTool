@@ -9,6 +9,8 @@ COMMAND_DEFS = [
     ("iran", "イラン関連ニュース"),
     ("analysis", "ルールベース自動分析"),
     ("position", "ポジション損益確認"),
+    ("longposition", "長期保有ポジション管理"),
+    ("long", "長期保有ポジション管理（短縮）"),
     ("alert", "アラート管理"),
     ("alerts", "アラート一覧"),
     ("ask", "claude.ai連携"),
@@ -21,6 +23,12 @@ COMMAND_DEFS = [
 ALERT_SUBCOMMANDS = [
     ("remove", "アラート削除 (例: /alert remove 0)"),
     ("clear", "全アラート削除"),
+]
+
+POSITION_SUBCOMMANDS = [
+    ("add", "ポジション追加 (例: /position add 2500 1.0 USD)"),
+    ("remove", "ポジション削除 (例: /position remove 0)"),
+    ("clear", "全ポジション削除"),
 ]
 
 README_SECTIONS = [
@@ -54,6 +62,16 @@ class EthCommandCompleter(Completer):
 
             if cmd == "alert":
                 for name, desc in ALERT_SUBCOMMANDS:
+                    if name.startswith(sub_text):
+                        yield Completion(
+                            name,
+                            start_position=-len(sub_text),
+                            display_meta=desc,
+                        )
+                return
+
+            if cmd in ("position", "longposition", "long"):
+                for name, desc in POSITION_SUBCOMMANDS:
                     if name.startswith(sub_text):
                         yield Completion(
                             name,

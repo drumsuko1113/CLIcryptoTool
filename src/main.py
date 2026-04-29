@@ -25,6 +25,8 @@ from src.theme import COLOR_BORDER, COLOR_MUTED, COLOR_ACCENT, COLOR_DOWN
 console = Console()
 alert_manager = AlertManager()
 position_manager = PositionManager()
+# Issue #37: 長期保有用ポジションは別ファイルで永続化
+long_position_manager = PositionManager("config/long_position.json")
 market_state = MarketState()
 market_state.position_manager = position_manager
 market_state.alert_manager = alert_manager
@@ -89,6 +91,7 @@ handler = CommandHandler(
     refresh_fn=refresh_market_data,
     render_fn=render_dashboard,
     data_lock=_data_lock,
+    long_position_manager=long_position_manager,
 )
 handler.set_price_func(get_eth_prices)
 COMMANDS = handler.get_commands_dict()
