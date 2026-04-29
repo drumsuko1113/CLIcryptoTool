@@ -34,6 +34,44 @@ class PositionManager:
         """全ポジションを削除する（取引履歴・累計利益は保持）"""
         self.positions = []
 
+    def _by_currency(self, currency):
+        """指定通貨のポジションだけを返す"""
+        return [p for p in self.positions if p["currency"] == currency]
+
+    def avg_entry_price(self, currency):
+        """通貨内の加重平均取得単価を返す。該当ポジションが無ければ None"""
+        target = self._by_currency(currency)
+        if not target:
+            return None
+        total_cost = sum(p["entry_price"] * p["amount"] for p in target)
+        total_amt = sum(p["amount"] for p in target)
+        if total_amt == 0:
+            return None
+        return total_cost / total_amt
+
+    def total_amount(self, currency):
+        """通貨内の合計保有数量"""
+        return sum(p["amount"] for p in self._by_currency(currency))
+
+    def total_unrealized_pnl(self, current_price, currency):
+        """通貨内の全体含み損益と損益率を返す"""
+        target = self._by_currency(currency)
+        if not target:
+            return {"pnl": 0.0, "pnl_percent": 0.0}
+        cost = sum(p["entry_price"] * p["amount"] for p in target)
+        market_value = sum(current_price * p["amount"] for p in target)
+        pnl = market_value - cost
+        pnl_percent = (pnl / cost * 100) if cost else 0.0
+        return {"pnl": pnl, "pnl_percent": pnl_percent}
+
+    def currencies_in_use(self):
+        """ポジションが存在する通貨の一覧（重複除去）"""
+        seen = []
+        for p in self.positions:
+            if p["currency"] not in seen:
+                seen.append(p["currency"])
+        return seen
+
     def calc_pnl(self, index, current_price):
         """指定ポジションの含み損益を計算する"""
         pos = self.positions[index]
@@ -115,6 +153,27 @@ class PositionManager:
                     f"損益: {sign}{symbol}{pnl['pnl']:,.2f} "
                     f"({sign}{pnl['pnl_percent']:.2f}%)"
                 )
+
+        # 通貨ごとに >= 2 件あれば集計サマリーを出す（Issue #35）
+        for cur in self.currencies_in_use():
+            target = self._by_currency(cur)
+            if len(target) < 2:
+                continue
+            symbol = "$" if cur == "USD" else "¥"
+            current_price = current_usd if cur == "USD" else current_jpy
+            avg = self.avg_entry_price(cur)
+            total_amt = self.total_amount(cur)
+            agg = self.total_unrealized_pnl(current_price, cur)
+            sign = "+" if agg["pnl"] >= 0 else ""
+            lines.append("-" * 50)
+            lines.append(
+                f"  {cur} 合計: {total_amt} ETH | "
+                f"平均取得 {symbol}{avg:,.2f}"
+            )
+            lines.append(
+                f"  含み損益: {sign}{symbol}{agg['pnl']:,.2f} "
+                f"({sign}{agg['pnl_percent']:.2f}%)"
+            )
 
         lines.append("-" * 50)
         lines.append(f"  スイング累計利益: ${self.total_profit:,.2f}")
