@@ -54,6 +54,90 @@ class TestGeneratePrompt:
         assert "ETH" in result
 
 
+class TestGeneratePromptWithPositions:
+    """Issue #36: 現在のポジション状況をプロンプトに含める"""
+
+    def _market_data(self):
+        return {
+            "eth_usd": 2700.0,
+            "eth_jpy": 405000.0,
+            "change_percent": 1.0,
+            "rsi": 55.0,
+            "macd": 2.0,
+            "signal": 1.5,
+            "sma5": 2680.0,
+            "sma13": 2650.0,
+            "sma25": 2600.0,
+        }
+
+    def test_positions_section_appears(self):
+        positions = [
+            {"entry_price": 2500.0, "amount": 1.0, "currency": "USD"},
+        ]
+        result = generate_prompt(
+            self._market_data(),
+            positions=positions,
+            current_prices={"USD": 2700.0, "JPY": 405000.0},
+        )
+        assert "保有ポジション" in result or "ポジション" in result
+        assert "2,500" in result or "2500" in result
+
+    def test_pnl_calculated_in_prompt(self):
+        """プロンプトに含み損益（金額・%）が出ている"""
+        positions = [
+            {"entry_price": 2500.0, "amount": 1.0, "currency": "USD"},
+        ]
+        result = generate_prompt(
+            self._market_data(),
+            positions=positions,
+            current_prices={"USD": 2700.0, "JPY": 405000.0},
+        )
+        # +$200, +8.00%
+        assert "200" in result
+        assert "8.00" in result
+
+    def test_aggregate_summary_with_multiple(self):
+        """複数ポジションがあれば集計サマリーが出る"""
+        positions = [
+            {"entry_price": 2500.0, "amount": 1.0, "currency": "USD"},
+            {"entry_price": 2600.0, "amount": 0.5, "currency": "USD"},
+        ]
+        result = generate_prompt(
+            self._market_data(),
+            positions=positions,
+            current_prices={"USD": 2700.0, "JPY": 405000.0},
+        )
+        # 平均取得 2533.33
+        assert "2,533.33" in result or "2533.33" in result
+        # 合計含み損益 +$250
+        assert "250.00" in result
+
+    def test_no_positions_message(self):
+        """ポジションが空の場合は「現在ポジションなし」を明記"""
+        result = generate_prompt(
+            self._market_data(),
+            positions=[],
+            current_prices={"USD": 2700.0, "JPY": 405000.0},
+        )
+        assert "ポジションなし" in result or "ポジション: なし" in result
+
+    def test_realized_profit_included(self):
+        """スイング累計実現益が渡された場合プロンプトに含まれる"""
+        result = generate_prompt(
+            self._market_data(),
+            positions=[],
+            current_prices={"USD": 2700.0, "JPY": 405000.0},
+            realized_profit=1234.56,
+        )
+        assert "1,234.56" in result or "1234.56" in result
+
+    def test_backwards_compat_no_kwargs(self):
+        """既存の呼び出し（market_data のみ）でも動く"""
+        result = generate_prompt(self._market_data())
+        assert isinstance(result, str)
+        assert "RSI" in result
+
+
 class TestPlatformUtils:
     def test_copy_to_clipboard_calls_powershell(self):
         with patch("src.platform_utils.subprocess.run") as mock_run:
