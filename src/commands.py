@@ -255,7 +255,15 @@ class CommandHandler:
             "sma25": _last_or(self.state.sma25, closes[-1]),
         }
 
-        prompt = generate_prompt(market_data)
+        prompt = generate_prompt(
+            market_data,
+            positions=list(self.positions.positions),
+            current_prices={
+                "USD": prices["eth_usd"],
+                "JPY": prices["eth_jpy"],
+            },
+            realized_profit=self.positions.total_profit,
+        )
         copy_to_clipboard(prompt)
         open_claude_ai()
         console.print(f"  [{COLOR_UP}]✓ プロンプトをクリップボードにコピーしました[/]")
