@@ -109,7 +109,8 @@ def generate_prompt(market_data, positions=None, current_prices=None,
                 header="【長期保有ポジション（HODL、原則ホールド）】",
             )
         if realized_profit is not None:
-            prompt += f"- スイング累計実現益: ${realized_profit:,.2f}\n"
+            # ポジションリストの「- 」項目と区別する
+            prompt += f"\nスイング累計実現益: ${realized_profit:,.2f}\n"
 
     prompt += """
 以下の観点で分析してください：
@@ -119,16 +120,31 @@ def generate_prompt(market_data, positions=None, current_prices=None,
 4. リスク要因
 5. 総合的な売買判断（買い/売り/様子見）"""
 
-    if positions or long_positions:
+    # スイング向け観点はスイング分が実在する場合のみ追加
+    extra = []
+    next_no = 6
+    if positions:
         if long_positions:
-            prompt += """
-6. スイング分について保持/利確/損切りすべきか
-7. スイング分の平均取得単価から見たナンピン/利確ラインの提案
-8. 長期保有分は原則ホールドだが、相場急変時の損切りラインの目安"""
+            extra.append(
+                f"{next_no}. スイング分について保持/利確/損切りすべきか"
+            )
+            extra.append(
+                f"{next_no + 1}. スイング分の平均取得単価から見たナンピン/利確ラインの提案"
+            )
         else:
-            prompt += """
-6. 保有ポジションを保持/利確/損切りすべきか
-7. 平均取得単価から見たナンピン/利確ラインの提案"""
+            extra.append(
+                f"{next_no}. 保有ポジションを保持/利確/損切りすべきか"
+            )
+            extra.append(
+                f"{next_no + 1}. 平均取得単価から見たナンピン/利確ラインの提案"
+            )
+        next_no += 2
+    if long_positions:
+        extra.append(
+            f"{next_no}. 長期保有分は原則ホールドだが、相場急変時の損切りラインの目安"
+        )
+    if extra:
+        prompt += "\n" + "\n".join(extra)
 
     return prompt
 
