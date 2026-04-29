@@ -30,6 +30,10 @@ class PositionManager:
             return True
         return False
 
+    def clear_positions(self):
+        """全ポジションを削除する（取引履歴・累計利益は保持）"""
+        self.positions = []
+
     def calc_pnl(self, index, current_price):
         """指定ポジションの含み損益を計算する"""
         pos = self.positions[index]

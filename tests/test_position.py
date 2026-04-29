@@ -63,3 +63,20 @@ class TestPositionManager:
         self.manager.remove_position(0)
         assert len(self.manager.positions) == 1
         assert self.manager.positions[0]["entry_price"] == 2600.0
+
+    def test_clear_positions(self):
+        self.manager.add_position(2500.0, 1.0, "USD")
+        self.manager.add_position(2600.0, 0.5, "USD")
+        self.manager.clear_positions()
+        assert self.manager.positions == []
+
+    def test_clear_positions_when_empty(self):
+        self.manager.clear_positions()
+        assert self.manager.positions == []
+
+    def test_clear_positions_does_not_touch_history(self):
+        self.manager.add_position(2500.0, 1.0, "USD")
+        self.manager.record_trade(100.0, "USD")
+        self.manager.clear_positions()
+        assert self.manager.trade_history[0]["profit"] == 100.0
+        assert self.manager.total_profit == 100.0
