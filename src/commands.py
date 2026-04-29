@@ -89,6 +89,26 @@ class CommandHandler:
         console.print(panel)
 
     def cmd_position(self, args):
+        if args:
+            subcmd = args[0].lower()
+            if subcmd == "add":
+                self._position_add(args[1:])
+                return
+            if subcmd == "remove":
+                self._position_remove(args[1:])
+                return
+            if subcmd == "clear":
+                self._position_clear()
+                return
+            console.print(
+                f"  [{COLOR_DOWN}]不明なサブコマンド: {args[0]}[/]"
+            )
+            console.print(
+                f"  [{COLOR_MUTED}]使い方: /position [add <価格> <数量> "
+                f"[USD|JPY] | remove <番号> | clear][/]"
+            )
+            return
+
         if not self.state.prices:
             self.refresh()
         if not self.state.prices:
@@ -105,6 +125,59 @@ class CommandHandler:
             padding=(1, 2),
         )
         console.print(panel)
+
+    def _position_add(self, args):
+        """/position add <価格> <数量> [USD|JPY]"""
+        if len(args) < 2:
+            console.print(
+                f"  [{COLOR_DOWN}]使い方: /position add <価格> <数量> [USD|JPY][/]"
+            )
+            return
+        try:
+            price = float(args[0])
+            amount = float(args[1])
+        except ValueError:
+            console.print(
+                f"  [{COLOR_DOWN}]エラー: 価格・数量は数値で指定してください[/]"
+            )
+            return
+        currency = args[2].upper() if len(args) >= 3 else "USD"
+        if currency not in ("USD", "JPY"):
+            console.print(
+                f"  [{COLOR_DOWN}]エラー: 通貨は USD または JPY を指定してください[/]"
+            )
+            return
+        self.positions.add_position(price, amount, currency)
+        self.positions.save()
+        sym = "$" if currency == "USD" else "¥"
+        console.print(
+            f"  [{COLOR_UP}]✓ ポジション追加: {sym}{price:,.2f} x {amount} ETH[/]"
+        )
+
+    def _position_remove(self, args):
+        """/position remove <番号>"""
+        if not args:
+            console.print(f"  [{COLOR_DOWN}]使い方: /position remove <番号>[/]")
+            return
+        try:
+            index = int(args[0])
+        except ValueError:
+            console.print(f"  [{COLOR_DOWN}]エラー: 番号は数値で指定してください[/]")
+            return
+        if self.positions.remove_position(index):
+            self.positions.save()
+            console.print(f"  [{COLOR_UP}]✓ ポジション [{index}] を削除しました[/]")
+        else:
+            console.print(
+                f"  [{COLOR_DOWN}]エラー: 番号 {index} のポジションは存在しません[/]"
+            )
+
+    def _position_clear(self):
+        """/position clear"""
+        count = len(self.positions.positions)
+        self.positions.clear_positions()
+        self.positions.save()
+        console.print(f"  [{COLOR_UP}]✓ {count}件のポジションを全削除しました[/]")
 
     def cmd_alert(self, args):
         if not args:
@@ -268,6 +341,9 @@ def build_help_panel():
         ("/iran", "イラン関連ニュースフィルタ"),
         ("/analysis", "ルールベース自動分析"),
         ("/position", "ポジション損益確認"),
+        ("/position add <価格> <数量> [USD|JPY]", "ポジション追加"),
+        ("/position remove <番号>", "ポジション削除"),
+        ("/position clear", "ポジション全削除"),
         ("/alert <価格>", "アラート作成（JPY）"),
         ("/alert remove <番号>", "アラート削除"),
         ("/alert clear", "アラート全削除"),
