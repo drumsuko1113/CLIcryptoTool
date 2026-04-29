@@ -11,7 +11,7 @@ from src.dashboard import (
     MarketState,
     _build_chart_text,
 )
-from src.theme import STYLE_UP, STYLE_DOWN
+from src.theme import STYLE_UP, STYLE_DOWN, CHART_UP, CHART_DOWN, COLOR_UP, COLOR_DOWN
 
 
 def _sample_market_state():
@@ -143,6 +143,48 @@ class TestChartTextAxis:
         )
         console.print(build_chart_panel(state, width=80))
         assert "¥" not in buf.getvalue()
+
+
+class TestChartCandleColors:
+    """ローソク足の色がチャート専用色定数（CHART_UP/CHART_DOWN）を使う"""
+
+    def test_chart_colors_differ_from_global(self):
+        """チャート色は PNL 等の COLOR_UP/COLOR_DOWN と独立している"""
+        assert CHART_UP != COLOR_UP
+        assert CHART_DOWN != COLOR_DOWN
+
+    def test_chart_up_is_red(self):
+        """上昇足は赤系（Issue #31: 日本式の慣習に合わせる）"""
+        assert CHART_UP.lower() == "#ff5252"
+
+    def test_chart_down_is_blue(self):
+        """下落足は青系（Issue #31）"""
+        assert CHART_DOWN.lower() == "#4fc3f7"
+
+    def test_chart_text_uses_chart_colors_for_candles(self):
+        """ローソク足の実体描画に CHART_UP/CHART_DOWN が使われている"""
+        # 上昇足だけのデータ
+        up_klines = [
+            [0, "2500", "2520", "2495", "2515", "100",
+             0, "0", "0", "0", "0", "0"]
+            for _ in range(20)
+        ]
+        up_closes = [2515.0] * 20
+        text = _build_chart_text(up_klines, up_closes, width=20, height=8)
+        styles = {str(span.style) for span in text.spans}
+        assert any(CHART_UP in s for s in styles)
+        assert not any(f"bold {COLOR_UP}" == s for s in styles)
+
+        # 下落足だけのデータ
+        down_klines = [
+            [0, "2500", "2520", "2480", "2485", "100",
+             0, "0", "0", "0", "0", "0"]
+            for _ in range(20)
+        ]
+        down_closes = [2485.0] * 20
+        text = _build_chart_text(down_klines, down_closes, width=20, height=8)
+        styles = {str(span.style) for span in text.spans}
+        assert any(CHART_DOWN in s for s in styles)
 
 
 class TestBuildIndicatorsPanel:
