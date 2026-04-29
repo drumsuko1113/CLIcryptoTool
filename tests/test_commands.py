@@ -5,12 +5,13 @@ import threading
 from unittest.mock import MagicMock
 
 from src.commands import CommandHandler
+from src.dashboard import MarketState
 from src.position import PositionManager
 
 
-def _make_handler(prices=None):
+def _make_handler(prices=None, refresh_fn=None, render_fn=None):
     """テスト用の CommandHandler を組み立てる"""
-    market_state = MagicMock()
+    market_state = MarketState()
     market_state.prices = prices or {
         "eth_usd": 2700.0,
         "eth_jpy": 405000.0,
@@ -20,6 +21,13 @@ def _make_handler(prices=None):
         "change_percent": 1.0,
         "usd_jpy_rate": 150.0,
     }
+    market_state.closes = [float(2500 + i * 5) for i in range(50)]
+    market_state.klines = [
+        [0, str(2500 + i * 5), str(2520 + i * 5),
+         str(2490 + i * 5), str(2505 + i * 5), "100",
+         0, "0", "0", "0", "0", "0"]
+        for i in range(50)
+    ]
     alert_manager = MagicMock()
     alert_manager.alerts = []
 
@@ -31,11 +39,55 @@ def _make_handler(prices=None):
         market_state=market_state,
         alert_manager=alert_manager,
         position_manager=position_manager,
-        refresh_fn=lambda: None,
-        render_fn=lambda: None,
+        refresh_fn=refresh_fn or (lambda: None),
+        render_fn=render_fn or (lambda: None),
         data_lock=threading.Lock(),
     )
     return handler, position_manager, config_path
+
+
+class TestPerCommandPanel:
+    """Issue #34: 各コマンドは対応するパネルだけを表示する"""
+
+    def test_price_does_not_render_full_dashboard(self):
+        """/price は全体描画関数（render_fn）を呼ばない"""
+        render = MagicMock()
+        refresh = MagicMock()
+        handler, _, _ = _make_handler(refresh_fn=refresh, render_fn=render)
+        handler.cmd_price([])
+        render.assert_not_called()
+
+    def test_price_refreshes_data(self):
+        """/price は最新データのために refresh は呼ぶ"""
+        refresh = MagicMock()
+        render = MagicMock()
+        handler, _, _ = _make_handler(refresh_fn=refresh, render_fn=render)
+        handler.cmd_price([])
+        refresh.assert_called_once()
+
+    def test_chart_does_not_render_full_dashboard(self):
+        """/chart は全体描画関数を呼ばない"""
+        render = MagicMock()
+        refresh = MagicMock()
+        handler, _, _ = _make_handler(refresh_fn=refresh, render_fn=render)
+        handler.cmd_chart([])
+        render.assert_not_called()
+
+    def test_chart_refreshes_data(self):
+        refresh = MagicMock()
+        render = MagicMock()
+        handler, _, _ = _make_handler(refresh_fn=refresh, render_fn=render)
+        handler.cmd_chart([])
+        refresh.assert_called_once()
+
+    def test_refresh_still_renders_full_dashboard(self):
+        """/refresh は引き続き全体描画する"""
+        render = MagicMock()
+        refresh = MagicMock()
+        handler, _, _ = _make_handler(refresh_fn=refresh, render_fn=render)
+        handler.cmd_refresh([])
+        refresh.assert_called_once()
+        render.assert_called_once()
 
 
 class TestPositionAddSubcommand:

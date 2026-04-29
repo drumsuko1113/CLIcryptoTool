@@ -12,6 +12,7 @@ from src.analysis import analyze_market
 from src.ask import generate_prompt, open_claude_ai
 from src.platform_utils import copy_to_clipboard
 from src.readme import build_readme
+from src.dashboard import build_price_panel, build_chart_panel
 from src.theme import (
     COLOR_BORDER, COLOR_TITLE, COLOR_MUTED, COLOR_ACCENT,
     COLOR_UP, COLOR_DOWN,
@@ -37,12 +38,18 @@ class CommandHandler:
         self._price_func = price_func
 
     def cmd_price(self, args):
+        """価格パネルのみ表示（Issue #34）"""
         self.refresh()
-        self.render()
+        with self.lock:
+            panel = build_price_panel(self.state)
+        console.print(panel)
 
     def cmd_chart(self, args):
+        """チャートパネルのみ表示（Issue #34）"""
         self.refresh()
-        self.render()
+        with self.lock:
+            panel = build_chart_panel(self.state, width=console.width)
+        console.print(panel)
 
     def cmd_news(self, args):
         console.print(f"\n  [bold {COLOR_ACCENT}]ニュースを取得中...[/]")
