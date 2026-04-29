@@ -133,7 +133,16 @@ class CommandHandler:
             + f"\n  取引回数: {len(self.positions.trade_history)}回"
             + "\n" + "=" * 50
         )
-        output = "\n".join(sections)
+        # 各セクションは ===== で閉じるが、後続セクションも ===== で開くため
+        # 連続行になる。最終以外のセクションから末尾の ===== を 1 行剥がす。
+        closer = "=" * 50
+        cleaned = []
+        for i, sec in enumerate(sections):
+            if i < len(sections) - 1 and sec.rstrip("\n").endswith(closer):
+                cleaned.append(sec.rstrip("\n")[: -len(closer)].rstrip("\n"))
+            else:
+                cleaned.append(sec)
+        output = "\n".join(cleaned)
         panel = Panel(
             Text(output),
             title=f"[bold {COLOR_TITLE}]ポジション管理[/]",

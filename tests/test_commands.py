@@ -252,6 +252,37 @@ class TestPositionDisplayWithLong:
         assert "スイングポジション" in output
         assert "長期保有ポジション" in output
 
+    def test_no_duplicate_section_separator(self):
+        """/position 複合表示でセクション間に ===== が重複しない（fix/review-polish）"""
+        from rich.console import Console as _Console
+        import io
+        handler, swing, long_pm, _ = _make_handler(with_long=True)
+        swing.add_position(2500.0, 1.0)
+        long_pm.add_position(1800.0, 2.0)
+        buf = io.StringIO()
+        from src import commands as _cmds
+        old_console = _cmds.console
+        _cmds.console = _Console(
+            file=buf, width=140, force_terminal=False, legacy_windows=False
+        )
+        try:
+            handler.cmd_position([])
+        finally:
+            _cmds.console = old_console
+        out = buf.getvalue()
+        # ===== が連続して2行出ていないこと
+        eq = "=" * 50
+        # パネル枠を除いた中身の行ベースで判定
+        prev_eq = False
+        for line in out.splitlines():
+            stripped = line.strip().strip("│").strip()
+            is_eq = stripped == eq
+            if is_eq and prev_eq:
+                raise AssertionError(
+                    f"連続した ===== 行を検出:\n{out}"
+                )
+            prev_eq = is_eq
+
     def test_position_no_long_section_when_long_empty(self):
         """長期ポジションが空なら長期セクションは出ない（情報過多回避）"""
         from rich.console import Console as _Console

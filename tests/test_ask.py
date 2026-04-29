@@ -131,6 +131,21 @@ class TestGeneratePromptWithPositions:
         )
         assert "1,234.56" in result or "1234.56" in result
 
+    def test_realized_profit_visually_separated(self):
+        """累計実現益はリスト項目に見えないよう区切られる（fix/review-polish）"""
+        result = generate_prompt(
+            self._market_data(),
+            positions=[],
+            long_positions=[
+                {"entry_price": 1800.0, "amount": 2.0, "currency": "USD"}
+            ],
+            current_prices={"USD": 2700.0, "JPY": 405000.0},
+            realized_profit=100.0,
+        )
+        # 「- スイング累計実現益」のような list-item 形式にしない
+        assert "- スイング累計実現益" not in result
+        assert "スイング累計実現益" in result
+
     def test_long_positions_separate_section(self):
         """Issue #37: 長期保有ポジションはスイング分と別セクションで出る"""
         positions = [
@@ -151,6 +166,47 @@ class TestGeneratePromptWithPositions:
         # 両ポジションの仕入値が含まれる
         assert "2,500" in result or "2500" in result
         assert "1,800" in result or "1800" in result
+
+    def test_swing_header_explicit_when_long_present_even_if_swing_empty(self):
+        """fix: 長期セクションがある場合、スイング側が空でも「スイング」と明示する"""
+        result = generate_prompt(
+            self._market_data(),
+            positions=[],
+            long_positions=[
+                {"entry_price": 1800.0, "amount": 2.0, "currency": "USD"}
+            ],
+            current_prices={"USD": 2700.0, "JPY": 405000.0},
+        )
+        # スイングが空でも「スイング」見出しが出る
+        assert "スイング" in result.split("【長期")[0]
+
+    def test_observations_skip_swing_specific_when_swing_empty(self):
+        """fix: スイングが空のとき観点 6/7（スイング向け）を出さない"""
+        result = generate_prompt(
+            self._market_data(),
+            positions=[],
+            long_positions=[
+                {"entry_price": 1800.0, "amount": 2.0, "currency": "USD"}
+            ],
+            current_prices={"USD": 2700.0, "JPY": 405000.0},
+        )
+        # スイング向け観点（保持/利確/損切り、ナンピン/利確ライン）はスキップ
+        assert "ナンピン/利確ライン" not in result
+        # 長期向け観点は残す
+        assert "長期保有分" in result
+
+    def test_observations_swing_only(self):
+        """スイング保有のみ → 6/7 (swing) は出るが 8 (long) は出ない"""
+        result = generate_prompt(
+            self._market_data(),
+            positions=[
+                {"entry_price": 2500.0, "amount": 1.0, "currency": "USD"}
+            ],
+            long_positions=None,
+            current_prices={"USD": 2700.0, "JPY": 405000.0},
+        )
+        assert "ナンピン/利確ライン" in result
+        assert "長期保有分" not in result
 
     def test_long_positions_only_when_swing_empty(self):
         """スイングなし・長期のみでも長期セクションが出る"""
