@@ -12,6 +12,7 @@ from src.theme import (
     COLOR_BG_HEADER, COLOR_BORDER, COLOR_BORDER_DIM,
     COLOR_UP, COLOR_DOWN, COLOR_LABEL, COLOR_VALUE,
     COLOR_ACCENT, COLOR_MUTED, COLOR_TITLE, COLOR_WARN,
+    CHART_UP, CHART_DOWN,
     STYLE_UP, STYLE_DOWN, STYLE_LABEL, STYLE_VALUE,
     CHAR_BODY_UP, CHAR_BODY_DOWN, CHAR_WICK, CHAR_BAR_FILL, CHAR_BAR_EMPTY,
 )
@@ -214,7 +215,7 @@ def _build_chart_text(klines, closes, width=60, height=16, usd_jpy_rate=None):
         o_row = price_to_row(o)
         c_row = price_to_row(c)
         is_up = c >= o
-        body_color = COLOR_UP if is_up else COLOR_DOWN
+        body_color = CHART_UP if is_up else CHART_DOWN
 
         # ヒゲ
         for row in range(h_row, l_row + 1):
